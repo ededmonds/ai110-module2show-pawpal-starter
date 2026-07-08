@@ -6,14 +6,31 @@
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+- Classes add:
+- Task - title, duration, priority, preferred time , notes 
+- Pet -name, species, age , special needs 
+- Owner - name , availability, preferences
+- Scheduler - sorts tasks by priority ( high first , then medium, then low ), fits them into the owner's availability window sequentially
+- UI
+- Sidebar - owner and pet info
+- add/delete tasks
+- build schedule generates the day plan with expandable cards showing start /end time and explanation for each task
+- warns about any tasks that couldn't be fit
 
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
-
----
-
+AI stated that Missing Relationships the Owner has no direct link to Pet. In the real world an owner owns pets, but right now Scheduler holds both separately. Consider adding a pets list to Owner:
+-PRIORITY_RANK is a global dict instead of an Enum. If someone passes priority="High" (capital H) or typos it, priority_value() will silently return None. Replacing it with an Enum catches this at assignment time.
+available_start and available_end are plain strings with no validation. If someone passes "7:00" instead of "07:00", datetime.strptime will crash inside build_schedule. Add validation in __post_init__:
+- build_schedule has no guard for an empty task list — it should return ([], []) immediately.
+- Task needs __lt__ so it works with heapq without errors when two tasks have equal priority:
+pythondef __lt__(self, other):
+    return self.duration_minutes < other.duration_minutes
+Scheduler is missing _build_heap() and _group_by_time() stubs that were in your UML diagram but didn't make it into the skeleton.
+Overall — the structure is solid. The main gaps are input validation, the missing Owner → Pet relationship, and the __lt__ method on Task.
+- 
 ## 2. Scheduling Logic and Tradeoffs
 
 **a. Constraints and priorities**
