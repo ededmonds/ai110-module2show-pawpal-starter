@@ -166,10 +166,23 @@ Core scheduling logic is well covered. The one gap is integration tests between 
 
 Describe your app in numbered steps so a reader can follow along without watching a video:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+Demo Walkthrough
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+
+Set up your profile — enter your name and available hours in the sidebar, then click Save Owner.
+Add a pet — go to the Pets tab, fill in the pet's name, species, and age, and click Add Pet.
+Add tasks — go to the Tasks tab. For each task, pick the pet it belongs to, set a priority and preferred time slot, and choose whether it repeats daily, weekly, or just once. Click Add Task.
+Build the schedule — go to the Schedule tab and click ✨ Build Schedule. PawPal+ will:
+
+Pull all tasks from every pet you manage
+Order them by priority using a heap
+Fit them sequentially into your available window
+Flag any tasks that couldn't fit
+Detect and display any time conflicts
+
+
+
+Review insights — the Insights tab shows completion stats, priority counts, and pending tasks sorted by time of day.
+Mark recurring tasks done — completing a daily or weekly task automatically queues the next one.
+
+**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here --> will have to add to later to get this in on time 
