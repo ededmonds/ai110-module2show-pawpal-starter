@@ -1,88 +1,54 @@
-# PawPal+ Project Reflection
+# PawPal+ — AI Collaboration Reflection
 
-## 1. System Design
+## How I Used AI Throughout This Project
 
-**a. Initial design**
+### Phase 1 — Design & Structure
+I used AI to help me think through the object model before writing a single line of code. I described what the app needed to do ("schedule pet care tasks based on priority and owner availability") and asked it to suggest which classes, attributes, and relationships made sense. The AI proposed the `Owner → Pet → Task` ownership chain, which I adopted because it mirrors real life: owners manage pets, pets have tasks.
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
-- Classes add:
-- Task - title, duration, priority, preferred time , notes 
-- Pet -name, species, age , special needs 
-- Owner - name , availability, preferences
-- Scheduler - sorts tasks by priority ( high first , then medium, then low ), fits them into the owner's availability window sequentially
-- UI
-- Sidebar - owner and pet info
-- add/delete tasks
-- build schedule generates the day plan with expandable cards showing start /end time and explanation for each task
-- warns about any tasks that couldn't be fit
+One decision the AI explained clearly was *why* `Scheduler` should call `owner.get_all_tasks()` instead of receiving a flat list of tasks directly — it keeps the scheduling logic decoupled from how tasks are stored, which makes the code easier to extend and test.
 
-**b. Design changes**
+### Phase 2 — Data Structures
+When I asked "what data structures would make this faster and stand out?", the AI walked me through several options and the trade-offs:
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
-AI stated that Missing Relationships the Owner has no direct link to Pet. In the real world an owner owns pets, but right now Scheduler holds both separately. Consider adding a pets list to Owner:
--PRIORITY_RANK is a global dict instead of an Enum. If someone passes priority="High" (capital H) or typos it, priority_value() will silently return None. Replacing it with an Enum catches this at assignment time.
-available_start and available_end are plain strings with no validation. If someone passes "7:00" instead of "07:00", datetime.strptime will crash inside build_schedule. Add validation in __post_init__:
-- build_schedule has no guard for an empty task list — it should return ([], []) immediately.
-- Task needs __lt__ so it works with heapq without errors when two tasks have equal priority:
-pythondef __lt__(self, other):
-    return self.duration_minutes < other.duration_minutes
-Scheduler is missing _build_heap() and _group_by_time() stubs that were in your UML diagram but didn't make it into the skeleton.
-Overall — the structure is solid. The main gaps are input validation, the missing Owner → Pet relationship, and the __lt__ method on Task.
-- 
-## 2. Scheduling Logic and Tradeoffs
+| Structure | Why I used it |
+|---|---|
+| `heapq` | O(log n) ordering of tasks by priority without sorting the whole list each time |
+| `IntEnum` | Lets `Priority` values be compared with `<` and `>` like integers, not just strings |
+| `defaultdict` | Groups tasks by time slot without manually checking if a key exists |
+| `deque(maxlen=10)` | Rolling history of past schedules, fixed memory — no cleanup code needed |
 
-**a. Constraints and priorities**
+I wouldn't have thought to use a heap for task ordering on my own. That was a genuine improvement suggested by AI.
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+### Phase 3 — Smart Features
+The AI helped me implement four features I wasn't sure how to approach:
 
-**b. Tradeoffs**
+**Sorting by time slot:** I didn't know how to sort on a custom order (morning before afternoon before evening). AI showed me the `TIME_ORDER` dictionary trick — map strings to integers and sort on those.
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+**Recurring tasks:** I debated whether `mark_complete()` should return a new Task or add it directly to the pet. The AI argued for returning it (single responsibility principle) and having `Scheduler.mark_task_complete()` add it to the pet. That separation made testing much easier.
+
+**Conflict detection:** I didn't know how to compare two time windows. AI explained the interval overlap formula: `a.start < b.end and b.start < a.end`. Adding `start_dt`/`end_dt` to `ScheduledTask` was its suggestion so I wouldn't have to re-parse strings inside the detection loop.
+
+**`filter_tasks` signature:** The AI suggested making `pet_name` and `completed` both optional with a default of `None` so the caller can filter on one, both, or neither. That's a pattern I'll use again.
+
+### Phase 4 — Testing & UI
+For tests, I described the behaviors I wanted to verify in plain English, and AI translated them into pytest fixtures and test methods. The trickiest fix was when two tests shared a fixture that already had a pet attached — isolating them with a fresh `busy_owner` / `busy_pet` pair was something I hadn't caught on my own.
+
+For the Streamlit UI, I asked AI to show me which Streamlit components to use for each piece of data (`st.metric`, `st.table`, `st.expander`, `st.warning`) and how to persist objects across re-renders using `st.session_state`. The four-tab layout (Pets / Tasks / Schedule / Insights) was a structure the AI proposed and I kept it because it separates data entry from analysis clearly.
 
 ---
 
-## 3. AI Collaboration
+## What I Would Do Differently
 
-**a. How you used AI**
+1. **Start with tests sooner.** I wrote most of the system before writing any tests, which meant some bugs hid until Phase 3. Writing even two tests per class at the start would have caught the `completed` attribute being missing from the original `Task` skeleton.
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+2. **Be more specific in prompts.** Early prompts like "create a skeleton" returned stubs with `pass` everywhere. Later I learned to say "implement this method, handle these edge cases, and return this type" — AI's output was much more usable.
 
-**b. Judgment and verification**
-
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+3. **Ask AI to explain, not just generate.** The most valuable moments were when I asked *why* a data structure or pattern was chosen, not just *what* to write. That's where I actually learned something.
 
 ---
 
-## 4. Testing and Verification
+## AI as a Collaborator
 
-**a. What you tested**
+AI worked best as a senior pair-programmer who could explain trade-offs and catch gaps in my design. It was less useful when I gave it vague prompts or when I asked it to do things that were really design decisions I needed to make myself (like what features the app should have). The clearer and more specific my prompts, the better the output.
 
-- What behaviors did you test?
-- Why were these tests important?
-
-**b. Confidence**
-
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
-
----
-
-## 5. Reflection
-
-**a. What went well**
-
-- What part of this project are you most satisfied with?
-
-**b. What you would improve**
-
-- If you had another iteration, what would you improve or redesign?
-
-**c. Key takeaway**
-
-- What is one important thing you learned about designing systems or working with AI on this project?
+The final codebase is mine — I understood every method before it went in, debugged it when tests failed, and made every major design call. AI sped up the parts where I knew *what* I wanted but not the exact *how*.

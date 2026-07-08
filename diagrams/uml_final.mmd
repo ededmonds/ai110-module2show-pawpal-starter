@@ -1,0 +1,88 @@
+---
+title: PawPal+ Class Diagram (Final)
+---
+classDiagram
+
+    %% ── Enum ──────────────────────────────────────────────────
+    class Priority {
+        <<enumeration>>
+        LOW = 1
+        MEDIUM = 2
+        HIGH = 3
+        +from_str(label: str) Priority
+    }
+
+    %% ── Task ─────────────────────────────────────────────────
+    class Task {
+        +title: str
+        +duration_minutes: int
+        +priority: Priority
+        +preferred_time: str
+        +notes: str
+        +completed: bool
+        +frequency: str
+        +due_date: date | None
+        +priority_value() int
+        +mark_complete() Task | None
+        +__lt__(other: Task) bool
+    }
+
+    %% ── Pet ──────────────────────────────────────────────────
+    class Pet {
+        +name: str
+        +species: str
+        +age: int
+        +special_needs: str
+        +tasks: List[Task]
+        +species_emoji() str
+        +add_task(task: Task) None
+    }
+
+    %% ── Owner ────────────────────────────────────────────────
+    class Owner {
+        +name: str
+        +available_start: str
+        +available_end: str
+        +preferences: str
+        +pets: List[Pet]
+        +__post_init__() None
+        +available_minutes() int
+        +add_pet(pet: Pet) None
+        +get_all_tasks() List[Task]
+    }
+
+    %% ── ScheduledTask ────────────────────────────────────────
+    class ScheduledTask {
+        +task: Task
+        +start_time: str
+        +end_time: str
+        +reason: str
+        +start_dt: datetime
+        +end_dt: datetime
+    }
+
+    %% ── Scheduler ────────────────────────────────────────────
+    class Scheduler {
+        +TIME_ORDER: dict
+        +owner: Owner
+        +pet: Pet
+        +history: deque
+        +build_schedule() tuple[List~ScheduledTask~, List~Task~]
+        +sort_by_time(tasks: List[Task]) List[Task]
+        +filter_tasks(pet_name, completed) List[Task]
+        +mark_task_complete(pet, task) None
+        +detect_conflicts(schedule) List[str]
+        -_build_heap(tasks) list
+        -_group_by_time(tasks) defaultdict
+        -_explain(task, start_time) str
+    }
+
+    %% ── Relationships ────────────────────────────────────────
+    Task        "1" --> "1"  Priority        : has
+    Pet         "1" *-- "0..*" Task          : owns
+    Owner       "1" *-- "1..*" Pet           : manages
+    ScheduledTask "1" --> "1" Task           : wraps
+    Scheduler   "1" --> "1"  Owner           : reads availability from
+    Scheduler   "1" --> "1"  Pet             : primary pet
+    Scheduler   ..>  ScheduledTask           : produces
+    Scheduler   ..>  Task                    : skips
