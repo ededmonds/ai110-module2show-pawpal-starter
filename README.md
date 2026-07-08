@@ -47,26 +47,6 @@ pip install -r requirements.txt
 Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
-```
-
-## 🧪 Testing PawPal+
-
-```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
-```
-
-Sample test output:
-
-```
 ============================================================
   🐾 PawPal+ Daily Schedule
   Owner : Jordan
@@ -108,6 +88,32 @@ Sample test output:
 ============================================================
   ✅ 5 task(s) scheduled  |  ⏱ 85 / 780 min used
 ============================================================
+
+```
+
+## 🧪 Testing PawPal+
+
+```bash
+# Run the full test suite:
+pytest
+
+# Run with coverage:
+pytest --cov
+```
+
+Sample test output:
+
+```
+(ai110-module2show-pawpal-starter) ericedmonds@Erics-MacBook-Pro-2 ai110-module2show-pawpal-starter % python -m pytest
+===================================================================================== test session starts =====================================================================================
+platform darwin -- Python 3.13.12, pytest-7.0.0, pluggy-1.6.0
+rootdir: /Users/ericedmonds/PycharmProjects/ai110-module2show-pawpal-starter
+plugins: anyio-4.14.1
+collected 2 items                                                                                                                                                                             
+
+tests/test_pawpal.py ..                                                                                                                                                                 [100%]
+
+====================================================================================== 2 passed in 0.04s ======================================================================================
 
 ```
 
