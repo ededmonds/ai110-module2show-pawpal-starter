@@ -116,6 +116,38 @@ tests/test_pawpal.py ..                                                         
 ====================================================================================== 2 passed in 0.04s ======================================================================================
 
 ```
+## Testing PawPal+
+
+Run the test suite with:
+
+```bash
+python -m pytest
+```
+
+### What's covered (29 tests across 6 classes)
+
+- **TestTask** — priority values, mark_complete, recurring task creation (daily/weekly), heap comparison
+- **TestPet** — task count, species emojis, edge cases
+- **TestOwner** — available minutes, invalid time format validation, multi-pet task collection
+- **TestSorting** — chronological order (morning → afternoon → evening → any), same-slot grouping
+- **TestFiltering** — filter by pet name, filter by completion status
+- **TestRecurring** — daily recurrence creates next task, one-time tasks don't
+- **TestConflictDetection** — sequential (no conflict), exact overlap, partial overlap, empty schedule
+- **TestBuildSchedule** — empty task list, task too long skipped, high priority first
+
+### Test run output
+
+```
+============================= test session starts ==============================
+collected 29 items
+
+29 passed in 0.19s
+======================================================
+```
+
+### Confidence Level: ⭐⭐⭐⭐ (4/5)
+
+Core scheduling logic is well covered. The one gap is integration tests between the UI (`app.py`) and the backend — those interactions are tested manually via Streamlit.
 
 ## 📐 Smarter Scheduling
 
