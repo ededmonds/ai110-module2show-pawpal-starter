@@ -1,0 +1,47 @@
+classDiagram
+    class Task {
+        +str title
+        +int duration_minutes
+        +str priority
+        +str preferred_time
+        +str notes
+        +priority_value() int
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +str special_needs
+        +species_emoji() str
+    }
+
+    class Owner {
+        +str name
+        +str available_start
+        +str available_end
+        +str preferences
+        +available_minutes() int
+    }
+
+    class ScheduledTask {
+        +Task task
+        +str start_time
+        +str end_time
+        +str reason
+    }
+
+    class Scheduler {
+        +Owner owner
+        +Pet pet
+        +List~Task~ tasks # may use heapq(Priority Queue) - this would give me 0(log n) priority sorting vs (
+        +build_schedule() tuple
+        +_explain(task, start_time) str
+    }
+
+    Owner "1" --> "1..*" Pet : owns
+    Scheduler --> Owner : uses
+    Scheduler --> Pet : plans for
+    Scheduler --> "0..*" Task : schedules
+    Scheduler --> "0..*" ScheduledTask : produces
+    ScheduledTask --> Task : wraps
