@@ -67,7 +67,48 @@ pytest --cov
 Sample test output:
 
 ```
-# Paste your pytest output here
+============================================================
+  🐾 PawPal+ Daily Schedule
+  Owner : Jordan
+  Pet   : 🐶 Mochi (age 3)
+  Hours : 07:00 – 20:00
+============================================================
+
+  1. 🔴 Feeding
+     Time     : 07:00 AM → 07:10 AM
+     Duration : 10 min
+     Priority : High
+     Why      : Scheduled at 07:00 AM (morning) because it is a high-priority task and placed first.
+
+  2. 🔴 Litter box cleaning
+     Time     : 07:10 AM → 07:20 AM
+     Duration : 10 min
+     Priority : High
+     Why      : Scheduled at 07:10 AM (morning) because it is a high-priority task and placed first.
+
+  3. 🔴 Morning walk
+     Time     : 07:20 AM → 07:50 AM
+     Duration : 30 min
+     Priority : High
+     Notes    : Use harness
+     Why      : Scheduled at 07:20 AM (morning) because it is a high-priority task and placed first. Note: Use harness
+
+  4. 🟡 Playtime
+     Time     : 07:50 AM → 08:10 AM
+     Duration : 20 min
+     Priority : Medium
+     Why      : Scheduled at 07:50 AM (morning) after all high-priority tasks are handled.
+
+  5. 🟢 Brushing
+     Time     : 08:10 AM → 08:25 AM
+     Duration : 15 min
+     Priority : Low
+     Notes    : Luna is sensitive around ears
+     Why      : Scheduled at 08:10 AM (morning) as a low-priority task, fitted into remaining time. Note: Luna is sensitive around ears
+============================================================
+  ✅ 5 task(s) scheduled  |  ⏱ 85 / 780 min used
+============================================================
+
 ```
 
 ## 📐 Smarter Scheduling
