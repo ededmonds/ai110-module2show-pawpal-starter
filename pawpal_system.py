@@ -3,24 +3,24 @@ PawPal+ Logic Layer
 --------------------
 All backend classes for the pet care scheduling system.
 Four core classes:
-  - Task       : a care activity with duration and priority
+  - Task       : a care activity with duration, priority, and recurrence
   - Pet        : the animal being cared for (owns its tasks)
   - Owner      : the person responsible for care (owns pets, provides all tasks)
-  - Scheduler  : builds and explains a daily care plan
+  - Scheduler  : builds, sorts, filters, and validates a daily care plan
 
 ScheduledTask is a result object returned by Scheduler.
 """
 
 from dataclasses import dataclass, field
-from typing import List
-from datetime import datetime, timedelta
+from typing import List, Optional
+from datetime import datetime, timedelta, date
 from enum import IntEnum
 from collections import defaultdict, deque
 import heapq
 
 
 # ─────────────────────────────────────────────
-# Priority Enum  (replaces magic string dict)
+# Priority Enum
 # ─────────────────────────────────────────────
 
 class Priority(IntEnum):
@@ -30,7 +30,7 @@ class Priority(IntEnum):
 
     @classmethod
     def from_str(cls, label: str) -> "Priority":
-        """Convert 'high'/'medium'/'low' string to Priority enum."""
+        """Convert a string label like 'high' to the matching Priority enum value."""
         return cls[label.upper()]
 
 
@@ -49,19 +49,51 @@ class Task:
         priority         : Priority enum value (HIGH, MEDIUM, LOW)
         preferred_time   : "morning", "afternoon", "evening", or "any"
         notes            : optional extra context
+        completed        : whether the task has been done
+        frequency        : "once", "daily", or "weekly"
+        due_date         : optional date the task is due
     """
     title: str
     duration_minutes: int
     priority: Priority
     preferred_time: str = "any"
     notes: str = ""
+    completed: bool = False
+    frequency: str = "once"
+    due_date: Optional[date] = None
 
     def priority_value(self) -> int:
-        """Return numeric rank for sorting (HIGH=3, MEDIUM=2, LOW=1)."""
+        """Return the numeric priority rank used for heap sorting."""
         return int(self.priority)
 
+    def mark_complete(self) -> Optional["Task"]:
+        """Mark this task done; return a new Task for next occurrence if recurring."""
+        self.completed = True
+        base_date = self.due_date or date.today()
+        if self.frequency == "daily":
+            return Task(
+                title=self.title,
+                duration_minutes=self.duration_minutes,
+                priority=self.priority,
+                preferred_time=self.preferred_time,
+                notes=self.notes,
+                frequency=self.frequency,
+                due_date=base_date + timedelta(days=1),
+            )
+        if self.frequency == "weekly":
+            return Task(
+                title=self.title,
+                duration_minutes=self.duration_minutes,
+                priority=self.priority,
+                preferred_time=self.preferred_time,
+                notes=self.notes,
+                frequency=self.frequency,
+                due_date=base_date + timedelta(weeks=1),
+            )
+        return None
+
     def __lt__(self, other: "Task") -> bool:
-        """Enable heapq comparison — shorter duration wins on tie."""
+        """Compare tasks by duration so heapq can break priority ties."""
         return self.duration_minutes < other.duration_minutes
 
 
@@ -88,11 +120,11 @@ class Pet:
     tasks: List[Task] = field(default_factory=list)
 
     def species_emoji(self) -> str:
-        """Return an emoji representing the species."""
+        """Return a species-appropriate emoji for display purposes."""
         return {"dog": "🐶", "cat": "🐱"}.get(self.species, "🐾")
 
     def add_task(self, task: Task) -> None:
-        """Add a care task to this pet."""
+        """Append a Task to this pet's task list."""
         self.tasks.append(task)
 
 
@@ -119,28 +151,27 @@ class Owner:
     pets: List[Pet] = field(default_factory=list)
 
     def __post_init__(self):
-        """Validate time format on creation."""
+        """Validate that available_start and available_end are in HH:MM format."""
         try:
             datetime.strptime(self.available_start, "%H:%M")
-            datetime.strptime(self.available_end, "%H:%M")
+            datetime.strptime(self.available_end,   "%H:%M")
         except ValueError:
-            raise ValueError("available_start and available_end must be in HH:MM format (e.g. '07:00')")
+            raise ValueError(
+                "available_start and available_end must be HH:MM format (e.g. '07:00')"
+            )
 
     def available_minutes(self) -> int:
-        """Return total available minutes between start and end."""
+        """Calculate total available minutes between start and end times."""
         start = datetime.strptime(self.available_start, "%H:%M")
         end   = datetime.strptime(self.available_end,   "%H:%M")
         return int((end - start).total_seconds() / 60)
 
     def add_pet(self, pet: Pet) -> None:
-        """Add a pet to this owner's care list."""
+        """Append a Pet to this owner's list of pets."""
         self.pets.append(pet)
 
     def get_all_tasks(self) -> List[Task]:
-        """
-        Collect every task from every pet this owner has.
-        Scheduler calls this instead of receiving tasks directly.
-        """
+        """Collect and return every task from every pet this owner manages."""
         all_tasks = []
         for pet in self.pets:
             all_tasks.extend(pet.tasks)
@@ -161,11 +192,15 @@ class ScheduledTask:
         start_time : formatted start time string (e.g. "07:00 AM")
         end_time   : formatted end time string
         reason     : explanation of why/when this task was scheduled
+        start_dt   : raw datetime for conflict checking
+        end_dt     : raw datetime for conflict checking
     """
     task: Task
     start_time: str
     end_time: str
     reason: str
+    start_dt: datetime = field(default=None)
+    end_dt: datetime   = field(default=None)
 
 
 # ─────────────────────────────────────────────
@@ -174,14 +209,7 @@ class ScheduledTask:
 
 class Scheduler:
     """
-    Builds a daily care schedule for a pet given an owner's availability.
-
-    Scheduling strategy:
-      1. Pull all tasks from owner.get_all_tasks()
-      2. Group by preferred_time using _group_by_time()
-      3. Build a heapq priority queue via _build_heap()
-      4. Place tasks sequentially; skip any that exceed available_end
-      5. Store results in history deque (max 10 sessions)
+    Builds, sorts, filters, and validates a daily care schedule.
 
     Attributes:
         owner   : the Owner whose time window and pets are used
@@ -189,31 +217,28 @@ class Scheduler:
         history : deque of past schedule results (max 10)
     """
 
+    # Time-of-day ordering for sort_by_time
+    TIME_ORDER = {"morning": 0, "afternoon": 1, "evening": 2, "any": 3}
+
     def __init__(self, owner: Owner, pet: Pet):
         self.owner = owner
         self.pet = pet
         self.history: deque = deque(maxlen=10)
 
-    def build_schedule(self):
-        """
-        Pull tasks from owner, sort via heap, fit into available window.
+    # ── Core scheduling ──────────────────────────────────────
 
-        Returns:
-            schedule : List[ScheduledTask] — tasks that were placed
-            skipped  : List[Task]          — tasks that didn't fit
-        """
+    def build_schedule(self):
+        """Pull tasks from owner, sort via heap, and fit them into the available window."""
         tasks = self.owner.get_all_tasks()
         if not tasks:
             return [], []
 
         heap = self._build_heap(tasks)
-        time_groups = self._group_by_time(tasks)
-
         schedule: List[ScheduledTask] = []
-        skipped: List[Task] = []
+        skipped:  List[Task]          = []
 
-        current  = datetime.strptime(self.owner.available_start, "%H:%M")
-        end_day  = datetime.strptime(self.owner.available_end,   "%H:%M")
+        current = datetime.strptime(self.owner.available_start, "%H:%M")
+        end_day = datetime.strptime(self.owner.available_end,   "%H:%M")
 
         while heap:
             _, _, task = heapq.heappop(heap)
@@ -223,66 +248,107 @@ class Scheduler:
                 skipped.append(task)
                 continue
 
-            reason = self._explain(task, current)
             schedule.append(ScheduledTask(
                 task=task,
                 start_time=current.strftime("%I:%M %p"),
                 end_time=end.strftime("%I:%M %p"),
-                reason=reason,
+                reason=self._explain(task, current),
+                start_dt=current,
+                end_dt=end,
             ))
             current = end
 
         self.history.appendleft(schedule)
         return schedule, skipped
 
-    def _build_heap(self, tasks: List[Task]) -> list:
-        """
-        Build a min-heap ordered by descending priority,
-        then ascending duration on ties.
+    # ── Sorting ──────────────────────────────────────────────
 
-        Returns:
-            list — heapified list of (-priority, duration, task) tuples
-        """
+    def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+        """Sort tasks by preferred_time slot: morning → afternoon → evening → any."""
+        return sorted(
+            tasks,
+            key=lambda t: self.TIME_ORDER.get(t.preferred_time, 3)
+        )
+
+    # ── Filtering ────────────────────────────────────────────
+
+    def filter_tasks(
+        self,
+        pet_name: Optional[str] = None,
+        completed: Optional[bool] = None,
+    ) -> List[Task]:
+        """Filter owner's tasks by pet name and/or completion status."""
+        if pet_name:
+            tasks = [
+                t
+                for pet in self.owner.pets
+                if pet.name == pet_name
+                for t in pet.tasks
+            ]
+        else:
+            tasks = self.owner.get_all_tasks()
+
+        if completed is not None:
+            tasks = [t for t in tasks if t.completed == completed]
+
+        return tasks
+
+    # ── Recurring tasks ──────────────────────────────────────
+
+    def mark_task_complete(self, pet: Pet, task: Task) -> None:
+        """Mark a task complete and auto-add the next occurrence if it recurs."""
+        next_task = task.mark_complete()
+        if next_task:
+            pet.add_task(next_task)
+
+    # ── Conflict detection ───────────────────────────────────
+
+    def detect_conflicts(self, schedule: List[ScheduledTask]) -> List[str]:
+        """Return warning strings for any overlapping tasks in the schedule."""
+        warnings = []
+        for i in range(len(schedule)):
+            for j in range(i + 1, len(schedule)):
+                a, b = schedule[i], schedule[j]
+                if a.start_dt and b.start_dt:
+                    if a.start_dt < b.end_dt and b.start_dt < a.end_dt:
+                        warnings.append(
+                            f"⚠️  Conflict: '{a.task.title}' "
+                            f"({a.start_time} – {a.end_time}) overlaps with "
+                            f"'{b.task.title}' ({b.start_time} – {b.end_time})"
+                        )
+        return warnings
+
+    # ── Private helpers ──────────────────────────────────────
+
+    def _build_heap(self, tasks: List[Task]) -> list:
+        """Build a max-priority min-heap from the task list for ordered scheduling."""
         heap = []
         for task in tasks:
             heapq.heappush(heap, (-task.priority_value(), task.duration_minutes, task))
         return heap
 
     def _group_by_time(self, tasks: List[Task]) -> defaultdict:
-        """
-        Group tasks by their preferred_time slot.
-
-        Returns:
-            defaultdict(list) keyed by "morning"/"afternoon"/"evening"/"any"
-        """
+        """Group tasks into a dict keyed by preferred time slot."""
         groups = defaultdict(list)
         for task in tasks:
             groups[task.preferred_time].append(task)
         return groups
 
     def _explain(self, task: Task, start_time: datetime) -> str:
-        """
-        Generate a human-readable reason for why this task
-        was scheduled at the given time.
-
-        Returns:
-            str — explanation sentence
-        """
+        """Generate a plain-English explanation of why a task was scheduled at a given time."""
         hour = start_time.hour
         time_label = (
-            "morning"   if hour < 12
+            "morning" if hour < 12
             else "afternoon" if hour < 17
             else "evening"
         )
         base = f"Scheduled at {start_time.strftime('%I:%M %p')} ({time_label}) "
-
         if task.priority == Priority.HIGH:
             base += "because it is a high-priority task and placed first."
         elif task.priority == Priority.MEDIUM:
             base += "after all high-priority tasks are handled."
         else:
             base += "as a low-priority task, fitted into remaining time."
-
         if task.notes:
             base += f" Note: {task.notes}"
         return base
